@@ -1,0 +1,227 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+
+   Sign Up/Sign up using HTML, Lamdba, API Gateway, Dynamodb and KMS
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+Parameters:
+  KeyAdmin:
+    Type: String
+    Default: admin
+  KeyUser:
+    Type: String
+    Default: admin
+  Origin:
+    Type: String
+    Default: https://stsexamplebucket.s3.us-east-2.amazonaws.com
+  ShowFilesUrl:
+    Type: String
+    Default: https://stsexamplebucket.s3.us-east-2.amazonaws.com/showFiles.html
+  FilesBucket:
+    Type: String
+    Default: s3-sales-rep
+Resources:
+  KmsKey:
+    Type: AWS::KMS::Key
+    Properties: 
+      Description: CMK for encrypting and decrypting
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: key-default-1
+        Statement:
+        - Sid: Enable IAM User Permissions
+          Effect: Allow
+          Principal:
+            AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+          Action: kms:*
+          Resource: '*'
+        - Sid: Allow administration of the key
+          Effect: Allow
+          Principal:
+            AWS: !Sub arn:aws:iam::${AWS::AccountId}:user/${KeyAdmin}
+          Action:
+          - kms:Create*
+          - kms:Describe*
+          - kms:Enable*
+          - kms:List*
+          - kms:Put*
+          - kms:Update*
+          - kms:Revoke*
+          - kms:Disable*
+          - kms:Get*
+          - kms:Delete*
+          - kms:ScheduleKeyDeletion
+          - kms:CancelKeyDeletion
+          Resource: '*'
+        - Sid: Allow use of the key
+          Effect: Allow
+          Principal:
+            AWS: !Sub arn:aws:iam::${AWS::AccountId}:user/${KeyUser}
+          Action:
+          - kms:DescribeKey
+          - kms:Encrypt
+          - kms:Decrypt
+          - kms:ReEncrypt*
+          - kms:GenerateDataKey
+          - kms:GenerateDataKeyWithoutPlaintext
+          Resource: '*'
+  myDynamoDBTable: 
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      BillingMode: PAY_PER_REQUEST 
+      AttributeDefinitions: 
+        - 
+          AttributeName: "userid"
+          AttributeType: "S"
+       
+      KeySchema: 
+        - 
+          AttributeName: "userid"
+          KeyType: "HASH"
+  ApiGatewaySignupApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+    Auth:
+     UsagePlan:
+      CreateUsagePlan: PER_API
+      Description: Usage plan for this API
+      Quota:
+       Limit: 500
+       Period: MONTH
+      Throttle:
+       BurstLimit: 100
+       RateLimit: 50
+  SignupFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Environment:
+        Variables:
+          userTable: !Ref myDynamoDBTable
+          keyid: !Ref KmsKey
+      CodeUri: Lambda/
+      Handler: signup.lambda_handler
+      Runtime: python3.8
+      Policies:
+       - DynamoDBCrudPolicy:
+          TableName: !Ref myDynamoDBTable
+       - KMSEncryptPolicy:
+          KeyId: !Ref KmsKey 
+       - KMSDecryptPolicy:
+          KeyId: !Ref KmsKey
+      Events:
+        getCounter:
+          Type: Api
+          Properties:
+            Path: /signup
+            Method: POST
+            RestApiId: !Ref ApiGatewaySignupApi
+  ApiGatewayLoginApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+    Auth:
+     UsagePlan:
+      CreateUsagePlan: PER_API
+      Description: Usage plan for this API
+      Quota:
+       Limit: 500
+       Period: MONTH
+      Throttle:
+       BurstLimit: 100
+       RateLimit: 50
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Environment:
+        Variables:
+          userTable: !Ref myDynamoDBTable
+          keyid: !Ref KmsKey
+          showFilesUrl: !Sub ${ShowFilesUrl}
+      CodeUri: Lambda/
+      Handler: login.lambda_handler
+      Runtime: python3.8
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref myDynamoDBTable
+        - KMSEncryptPolicy:
+            KeyId: !Ref KmsKey 
+        - KMSDecryptPolicy:
+            KeyId: !Ref KmsKey
+      Events:
+        getCounter:
+          Type: Api
+          Properties:
+            Path: /login
+            Method: POST
+            RestApiId: !Ref ApiGatewayLoginApi
+  ApiGatewayShowFilesApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+    Auth:
+     UsagePlan:
+      CreateUsagePlan: PER_API
+      Description: Usage plan for this API
+      Quota:
+       Limit: 500
+       Period: MONTH
+      Throttle:
+       BurstLimit: 100
+       RateLimit: 50
+  ShowFilesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Environment:
+        Variables:
+          userTable: !Ref myDynamoDBTable
+          s3role: !GetAtt IamS3Role.Arn
+          origin: !Sub ${Origin}
+          filesBucket: !Sub ${FilesBucket}
+      CodeUri: Lambda/
+      Handler: showfiles.lambda_handler
+      Runtime: python3.8
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref myDynamoDBTable      
+      Events:
+        getCounter:
+          Type: Api
+          Properties:
+            Path: /showFiles
+            Method: GET
+            RestApiId: !Ref ApiGatewayShowFilesApi
+  IamS3Role:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+       Version: 2012-10-17
+       Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt ShowFilesFunctionRole.Arn
+            Action:
+              - 'sts:AssumeRole'
+      Description: 'Readonly S3 role for lamdba to Assume at runtime'
+      ManagedPolicyArns: 
+      - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      RoleName: S3ReadOnlyAccessAssumeRole
+
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  ApiGatewaySignupApi:
+    Description: "API Gateway endpoint URL for Prod stage for Signup function"
+    Value: !Sub "https://${ApiGatewaySignupApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/signup/"
+  ApiGatewayLoginApi:
+    Description: "API Gateway endpoint URL for Prod stage for login function"
+    Value: !Sub "https://${ApiGatewayLoginApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/login/"
+  ApiGatewayShowFilesApi:
+    Description: "API Gateway endpoint URL for Prod stage for show files function"
+    Value: !Sub "https://${ApiGatewayShowFilesApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/showFiles/"

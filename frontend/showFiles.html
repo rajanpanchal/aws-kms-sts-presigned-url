@@ -1,0 +1,43 @@
+<html>
+<head>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css" integrity="sha512-8bHTC73gkZ7rZ7vpqUQThUDhqcNFyYi2xgDgPDHc+GXVGHXq+xPjynxIopALmOPqzo9JZj0k6OqqewdGO3EsrQ==" crossorigin="anonymous" />
+<script
+  src="https://code.jquery.com/jquery-3.1.1.min.js"
+  integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
+  crossorigin="anonymous"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.js"></script>
+</head>
+<body>
+
+<div class="ui raised very text container">
+<h1 class="ui header">File Access System</h1>
+<i class="folder open icon"></i></i><div class="ui label">Files</div>
+<div id="files" >Loading..</div>
+</div>
+</body>
+<script>
+
+fetch("	https://g4m3zpzp95.execute-api.us-east-2.amazonaws.com/Prod/showFiles/", {
+  credentials: 'include'
+})
+  .then(response => response.text())
+  .then((body) => {
+    var files="";
+	
+	var obj = JSON.parse(body)
+	for (i = 0; i < obj.length; i++) {
+			var o = obj[i]
+			
+			for(x in o){
+				files =  files+ "<i class='file alternate outline icon'><a href='"+o[x]+"' target='_blank'>&nbsp;&nbsp;"+x+"</a>"
+			}
+	}
+    document.getElementById("files").innerHTML= files
+  })
+  .catch(function(error) {
+    console.log(error); 
+  });
+
+</script>
+</html>
