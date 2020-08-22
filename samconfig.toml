@@ -5,7 +5,7 @@ version = 0.1
 stack_name = "aws-kms-example"
 s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1xyg1t2j2ws5k"
 s3_prefix = "aws-kms-example"
-region = "us-east-1"
+region = "us-east-2"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM"
 parameter_overrides = "KeyAdmin=\"admin\" KeyUser=\"admin\" Origin=\"https://stsexamplebucket.s3.us-east-2.amazonaws.com\" ShowFilesUrl=\"https://stsexamplebucket.s3.us-east-2.amazonaws.com/showFiles.html\" FilesBucket=\"s3-sales-rep\""
